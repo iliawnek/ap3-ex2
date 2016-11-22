@@ -1,16 +1,19 @@
 package com.ap3.ex2;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class Worker implements Runnable {
     private LinkedBlockingQueue<String> workQueue;
-    private LinkedBlockingQueue<String> anotherStructure;
+    private List<String> anotherStructure;
     private Pattern pattern;
 
-    Worker(LinkedBlockingQueue<String> workQueue, LinkedBlockingQueue<String> anotherStructure, Pattern pattern) {
+    Worker(LinkedBlockingQueue<String> workQueue, List<String> anotherStructure, Pattern pattern) {
         this.workQueue = workQueue;
         this.anotherStructure = anotherStructure;
         this.pattern = pattern;
@@ -37,13 +40,14 @@ class Worker implements Runnable {
                         } else {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
-                                anotherStructure.put(entry);
+                                anotherStructure.add(entry);
                             }
                         }
                     }
                 }
             }
-        } catch (InterruptedException ignored) {}
+        } catch (InterruptedException ignored) {
+        }
     }
 }
 
@@ -70,7 +74,7 @@ public class MultipleWorkerFileCrawler {
 
         // populate work queue
         LinkedBlockingQueue<String> workQueue = new LinkedBlockingQueue<>();
-        LinkedBlockingQueue<String> anotherStructure = new LinkedBlockingQueue<>();
+        List<String> anotherStructure = Collections.synchronizedList(new ArrayList<>());
         Thread[] workers = new Thread[crawlerThreads];
         workQueue.put(directory);
         for (int i = 0; i < crawlerThreads; i++) {
@@ -81,12 +85,11 @@ public class MultipleWorkerFileCrawler {
         for (Thread worker : workers) worker.interrupt();
 
         // harvest the data in the Another Structure, printing out the results
-        String harvest;
-        while (!anotherStructure.isEmpty()) {
-            harvest = anotherStructure.remove();
-            System.out.println(harvest);
+        Collections.sort(anotherStructure);
+        for (String match : anotherStructure) {
+            System.out.println(match);
         }
-}
+    }
 
     private static boolean allThreadsWaiting(Thread[] threads) {
         for (Thread thread : threads) {
@@ -95,28 +98,6 @@ public class MultipleWorkerFileCrawler {
             }
         }
         return true;
-    }
-
-    private static void processDirectory(String name, LinkedBlockingQueue<String> list) {
-        try {
-            File file = new File(name); // create a File object
-            if (file.isDirectory()) { // a directory - could be symlink
-                String entries[] = file.list();
-                if (entries != null) { // not a symlink
-//                    System.out.format("putting %s\n", name);
-                    list.put(name);
-                    for (String entry : entries) {
-                        if (entry.compareTo(".") == 0)
-                            continue;
-                        if (entry.compareTo("..") == 0)
-                            continue;
-                        processDirectory(name + "/" + entry, list);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error processing " + name + ": " + e);
-        }
     }
 
     private static String convertPattern(String str) {
