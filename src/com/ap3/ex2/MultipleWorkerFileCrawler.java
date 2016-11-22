@@ -1,7 +1,6 @@
 package com.ap3.ex2;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,16 +37,13 @@ class Worker implements Runnable {
                         } else {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
-                                System.out.println(entry);
                                 anotherStructure.put(entry);
                             }
                         }
                     }
                 }
             }
-        } catch (InterruptedException e) {
-            System.out.println(e.getMessage());
-        }
+        } catch (InterruptedException ignored) {}
     }
 }
 
@@ -81,14 +77,25 @@ public class MultipleWorkerFileCrawler {
             workers[i] = new Thread(new Worker(workQueue, anotherStructure, pattern));
             workers[i].start();
         }
+        while (!workQueue.isEmpty() || !allThreadsWaiting(workers)) Thread.sleep(10);
+        for (Thread worker : workers) worker.interrupt();
 
         // harvest the data in the Another Structure, printing out the results
-//        String harvest;
-//        while (!anotherStructure.isEmpty()) {
-//            harvest = anotherStructure.remove();
-//            System.out.println(harvest);
-//        }
+        String harvest;
+        while (!anotherStructure.isEmpty()) {
+            harvest = anotherStructure.remove();
+            System.out.println(harvest);
+        }
 }
+
+    private static boolean allThreadsWaiting(Thread[] threads) {
+        for (Thread thread : threads) {
+            if (thread.getState() != Thread.State.WAITING) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static void processDirectory(String name, LinkedBlockingQueue<String> list) {
         try {
