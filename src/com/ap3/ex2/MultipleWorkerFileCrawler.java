@@ -1,19 +1,17 @@
 package com.ap3.ex2;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class Worker implements Runnable {
     private LinkedBlockingQueue<String> workQueue;
-    private List<String> anotherStructure;
+    private ConcurrentSkipListSet<String> anotherStructure;
     private Pattern pattern;
 
-    Worker(LinkedBlockingQueue<String> workQueue, List<String> anotherStructure, Pattern pattern) {
+    Worker(LinkedBlockingQueue<String> workQueue, ConcurrentSkipListSet<String> anotherStructure, Pattern pattern) {
         this.workQueue = workQueue;
         this.anotherStructure = anotherStructure;
         this.pattern = pattern;
@@ -34,13 +32,14 @@ class Worker implements Runnable {
                 if (entries != null) {
                     for (String entry : entries) {
                         if (entry.equals(".") || entry.equals("..")) continue;
-                        innerFile = new File(currentDirectory + "/" + entry);
+                        String fullPath = currentDirectory + "/" + entry;
+                        innerFile = new File(fullPath);
                         if (innerFile.isDirectory()) {
-                            workQueue.put(currentDirectory + "/" + entry);
+                            workQueue.put(fullPath);
                         } else {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
-                                anotherStructure.add(entry);
+                                anotherStructure.add(fullPath);
                             }
                         }
                     }
@@ -58,23 +57,23 @@ public class MultipleWorkerFileCrawler {
         String bashPattern = args[0];
         String regexPattern = convertPattern(bashPattern);
         Pattern pattern = Pattern.compile(regexPattern);
-        int crawlerThreads = 2;
         String directory;
         if (args.length > 1) {
             directory = args[1];
         } else {
             directory = ".";
         }
-        for (String env : args) {
-            String value = System.getenv(env);
-            if (value != null) {
-                crawlerThreads = Integer.parseInt(value);
-            }
+
+        // get environment variable
+        int crawlerThreads = 2;
+        String value = System.getenv("CRAWLER_THREADS");
+        if (value != null) {
+            crawlerThreads = Integer.parseInt(value);
         }
 
         // populate work queue
         LinkedBlockingQueue<String> workQueue = new LinkedBlockingQueue<>();
-        List<String> anotherStructure = Collections.synchronizedList(new ArrayList<>());
+        ConcurrentSkipListSet<String> anotherStructure = new ConcurrentSkipListSet<>();
         Thread[] workers = new Thread[crawlerThreads];
         workQueue.put(directory);
         for (int i = 0; i < crawlerThreads; i++) {
@@ -85,7 +84,6 @@ public class MultipleWorkerFileCrawler {
         for (Thread worker : workers) worker.interrupt();
 
         // harvest the data in the Another Structure, printing out the results
-        Collections.sort(anotherStructure);
         for (String match : anotherStructure) {
             System.out.println(match);
         }
