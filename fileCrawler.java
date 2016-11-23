@@ -4,6 +4,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+// Crawler worker which takes directories from the work queue.
+// For each directory taken, the worker adds all non-symlink sub-directories
+// back into the work queue, and adds all files to "another structure" whose
+// name matches the given pattern.
 class Worker implements Runnable {
     private LinkedBlockingQueue<String> workQueue;
     private ConcurrentSkipListSet<String> anotherStructure;
@@ -24,26 +28,26 @@ class Worker implements Runnable {
         Matcher matcher;
         try {
             while (true) {
-                currentDirectory = workQueue.take();
+                currentDirectory = workQueue.take(); // take next directory from work queue, wait if empty
                 currentFile = new File(currentDirectory);
                 entries = currentFile.list();
                 if (entries != null) {
                     for (String entry : entries) {
-                        if (entry.equals(".") || entry.equals("")) continue;
+                        if (entry.equals(".") || entry.equals("..")) continue;
                         String fullPath = currentDirectory + "/" + entry;
                         innerFile = new File(fullPath);
                         if (innerFile.isDirectory()) {
-                            workQueue.put(fullPath);
+                            workQueue.put(fullPath); // add sub-directory into work queue
                         } else {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
-                                anotherStructure.add(fullPath);
+                                anotherStructure.add(fullPath); // add matching file to another structure
                             }
                         }
                     }
                 }
             }
-        } catch (InterruptedException ignored) {
+        } catch (InterruptedException ignored) { // terminate thread if interrupted
         }
     }
 }
@@ -69,7 +73,7 @@ public class fileCrawler {
             crawlerThreads = Integer.parseInt(value);
         }
 
-        // populate work queue
+        // initialise worker threads to crawl and find matching files
         LinkedBlockingQueue<String> workQueue = new LinkedBlockingQueue<>();
         ConcurrentSkipListSet<String> anotherStructure = new ConcurrentSkipListSet<>();
         Thread[] workers = new Thread[crawlerThreads];
@@ -78,15 +82,18 @@ public class fileCrawler {
             workers[i] = new Thread(new Worker(workQueue, anotherStructure, pattern));
             workers[i].start();
         }
+	// check if crawling has finished every 10ms, sleep when waiting
         while (!workQueue.isEmpty() || !allThreadsWaiting(workers)) Thread.sleep(10);
+        // interrupt all workers to terminate them
         for (Thread worker : workers) worker.interrupt();
 
-        // harvest the data in the Another Structure, printing out the results
+        // print matching files
         for (String match : anotherStructure) {
             System.out.println(match);
         }
     }
 
+    // Returns true if all threads in given array are waiting.
     private static boolean allThreadsWaiting(Thread[] threads) {
         for (Thread thread : threads) {
             if (thread.getState() != Thread.State.WAITING) {
@@ -96,6 +103,7 @@ public class fileCrawler {
         return true;
     }
 
+    // Convert bash string matching pattern to regex.
     private static String convertPattern(String str) {
         StringBuilder pat = new StringBuilder();
         int start, length;
