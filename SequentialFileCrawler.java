@@ -1,7 +1,6 @@
-package com.ap3.ex2;
-
 import java.io.File;
 import java.util.LinkedList;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,7 +23,7 @@ public class SequentialFileCrawler {
         processDirectory(directory, workQueue);
 
         // process the Work Queue, placing the processed data in the Another Structure
-        LinkedList<String> anotherStructure = new LinkedList<>();
+        TreeSet<String> anotherStructure = new TreeSet<>();
         String currentDirectory;
         File currentFile;
         String[] entries;
@@ -37,18 +36,14 @@ public class SequentialFileCrawler {
                 for (String entry : entries) {
                     matcher = pattern.matcher(entry);
                     if (matcher.matches()) {
-                        anotherStructure.addLast(entry);
+                        anotherStructure.add(currentDirectory + "/" + entry);
                     }
                 }
             }
         }
 
         // harvest the data in the Another Structure, printing out the results
-        String harvest;
-        while (!anotherStructure.isEmpty()) {
-            harvest = anotherStructure.remove();
-            System.out.println(harvest);
-        }
+        for (String match : anotherStructure) System.out.println(match);
 
     }
 
@@ -96,7 +91,7 @@ public class SequentialFileCrawler {
                     for (String entry : entries) {
                         if (entry.compareTo(".") == 0)
                             continue;
-                        if (entry.compareTo("..") == 0)
+                        if (entry.compareTo("") == 0)
                             continue;
                         processDirectory(name + "/" + entry, list);
                     }

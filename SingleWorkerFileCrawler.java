@@ -1,17 +1,15 @@
-package com.ap3.ex2;
-
 import java.io.File;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-class Worker implements Runnable {
+class SingleWorker implements Runnable {
     private LinkedBlockingQueue<String> workQueue;
     private ConcurrentSkipListSet<String> anotherStructure;
     private Pattern pattern;
 
-    Worker(LinkedBlockingQueue<String> workQueue, ConcurrentSkipListSet<String> anotherStructure, Pattern pattern) {
+    SingleWorker(LinkedBlockingQueue<String> workQueue, ConcurrentSkipListSet<String> anotherStructure, Pattern pattern) {
         this.workQueue = workQueue;
         this.anotherStructure = anotherStructure;
         this.pattern = pattern;
@@ -27,30 +25,30 @@ class Worker implements Runnable {
         try {
             while (true) {
                 currentDirectory = workQueue.take();
+                if (currentDirectory.equals("!!!")) {
+                    return;
+                }
                 currentFile = new File(currentDirectory);
                 entries = currentFile.list();
                 if (entries != null) {
                     for (String entry : entries) {
-                        if (entry.equals(".") || entry.equals("..")) continue;
-                        String fullPath = currentDirectory + "/" + entry;
-                        innerFile = new File(fullPath);
-                        if (innerFile.isDirectory()) {
-                            workQueue.put(fullPath);
-                        } else {
+                        innerFile = new File(currentDirectory + "/" + entry);
+                        if (!innerFile.isDirectory()) {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
-                                anotherStructure.add(fullPath);
+                                anotherStructure.add(currentDirectory + "/" + entry);
                             }
                         }
                     }
                 }
             }
-        } catch (InterruptedException ignored) {
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
         }
     }
 }
 
-public class MultipleWorkerFileCrawler {
+public class SingleWorkerFileCrawler {
 
     public static void main(String[] args) throws InterruptedException {
         // process arguments
@@ -64,24 +62,14 @@ public class MultipleWorkerFileCrawler {
             directory = ".";
         }
 
-        // get environment variable
-        int crawlerThreads = 2;
-        String value = System.getenv("CRAWLER_THREADS");
-        if (value != null) {
-            crawlerThreads = Integer.parseInt(value);
-        }
-
         // populate work queue
         LinkedBlockingQueue<String> workQueue = new LinkedBlockingQueue<>();
         ConcurrentSkipListSet<String> anotherStructure = new ConcurrentSkipListSet<>();
-        Thread[] workers = new Thread[crawlerThreads];
-        workQueue.put(directory);
-        for (int i = 0; i < crawlerThreads; i++) {
-            workers[i] = new Thread(new Worker(workQueue, anotherStructure, pattern));
-            workers[i].start();
-        }
-        while (!workQueue.isEmpty() || !allThreadsWaiting(workers)) Thread.sleep(10);
-        for (Thread worker : workers) worker.interrupt();
+        Thread worker = new Thread(new SingleWorker(workQueue, anotherStructure, pattern));
+        worker.start();
+        processDirectory(directory, workQueue);
+        workQueue.put("!!!"); // poison
+        worker.join();
 
         // harvest the data in the Another Structure, printing out the results
         for (String match : anotherStructure) {
@@ -89,13 +77,25 @@ public class MultipleWorkerFileCrawler {
         }
     }
 
-    private static boolean allThreadsWaiting(Thread[] threads) {
-        for (Thread thread : threads) {
-            if (thread.getState() != Thread.State.WAITING) {
-                return false;
+    private static void processDirectory(String name, LinkedBlockingQueue<String> list) {
+        try {
+            File file = new File(name); // create a File object
+            if (file.isDirectory()) { // a directory - could be symlink
+                String entries[] = file.list();
+                if (entries != null) { // not a symlink
+                    list.put(name);
+                    for (String entry : entries) {
+                        if (entry.compareTo(".") == 0)
+                            continue;
+                        if (entry.compareTo("") == 0)
+                            continue;
+                        processDirectory(name + "/" + entry, list);
+                    }
+                }
             }
+        } catch (Exception e) {
+            System.err.println("Error processing " + name + ": " + e);
         }
-        return true;
     }
 
     private static String convertPattern(String str) {
