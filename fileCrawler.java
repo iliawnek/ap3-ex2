@@ -1,3 +1,9 @@
+// Name: Ken Li
+// Matriculation number: 2131620
+// Assignment: Advanced Programming (H) Exercise 2
+
+// This is my own work as defined in the Academic Ethics agreement I have signed.
+
 import java.io.File;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.LinkedBlockingQueue;
