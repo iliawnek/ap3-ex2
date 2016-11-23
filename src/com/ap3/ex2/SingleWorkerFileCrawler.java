@@ -5,12 +5,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-class Worker implements Runnable {
+class SingleWorker implements Runnable {
     private LinkedBlockingQueue<String> workQueue;
     private LinkedBlockingQueue<String> anotherStructure;
     private Pattern pattern;
 
-    Worker(LinkedBlockingQueue<String> workQueue, LinkedBlockingQueue<String> anotherStructure, Pattern pattern) {
+    SingleWorker(LinkedBlockingQueue<String> workQueue, LinkedBlockingQueue<String> anotherStructure, Pattern pattern) {
         this.workQueue = workQueue;
         this.anotherStructure = anotherStructure;
         this.pattern = pattern;
@@ -26,6 +26,7 @@ class Worker implements Runnable {
         try {
             while (true) {
                 currentDirectory = workQueue.take();
+//                System.out.format("taking %s\n", currentDirectory);
                 if (currentDirectory.equals("!!!")) {
                     return;
                 }
@@ -33,7 +34,7 @@ class Worker implements Runnable {
                 entries = currentFile.list();
                 if (entries != null) {
                     for (String entry : entries) {
-                        innerFile = new File(entry);
+                        innerFile = new File(currentDirectory + "/" + entry);
                         if (!innerFile.isDirectory()) {
                             matcher = pattern.matcher(entry);
                             if (matcher.matches()) {
@@ -66,7 +67,7 @@ public class SingleWorkerFileCrawler {
         // populate work queue
         LinkedBlockingQueue<String> workQueue = new LinkedBlockingQueue<>();
         LinkedBlockingQueue<String> anotherStructure = new LinkedBlockingQueue<>();
-        Thread worker = new Thread(new Worker(workQueue, anotherStructure, pattern));
+        Thread worker = new Thread(new SingleWorker(workQueue, anotherStructure, pattern));
         worker.start();
         processDirectory(directory, workQueue);
         workQueue.put("!!!"); // poison
